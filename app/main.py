@@ -110,14 +110,41 @@ def create_app() -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def index(request: Request):
+        """Main chat UI (Phase 5)."""
         if templates is None:
             return HTMLResponse(
                 "<h1>LocalAI Hub</h1><p>API running. See <a href='/docs'>/docs</a>.</p>"
             )
         return templates.TemplateResponse(
             request=request,
-            name="base.html",
-            context={"title": "LocalAI Hub"},
+            name="chat.html",
+            context={},
+        )
+
+    @app.get("/settings", response_class=HTMLResponse, include_in_schema=False)
+    async def settings_page(request: Request):
+        if templates is None:
+            return HTMLResponse("<p>Settings — coming in Phase 6.</p>")
+        return templates.TemplateResponse(
+            request=request,
+            name="page_stub.html",
+            context={
+                "title": "Settings — LocalAI Hub",
+                "message": "Settings page — planned for Phase 6.",
+            },
+        )
+
+    @app.get("/monitor", response_class=HTMLResponse, include_in_schema=False)
+    async def monitor_page(request: Request):
+        if templates is None:
+            return HTMLResponse("<p>Monitor — coming in Phase 7.</p>")
+        return templates.TemplateResponse(
+            request=request,
+            name="page_stub.html",
+            context={
+                "title": "Monitor — LocalAI Hub",
+                "message": "System monitor — planned for Phase 7.",
+            },
         )
 
     @app.get("/stream-test", response_class=HTMLResponse, include_in_schema=False)
