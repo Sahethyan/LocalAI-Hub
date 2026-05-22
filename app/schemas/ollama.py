@@ -3,8 +3,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-OllamaConnectionStatus = Literal["online", "offline", "degraded"]
-
 
 class OllamaModelDetails(BaseModel):
     parent_model: str | None = None
@@ -29,33 +27,16 @@ class OllamaModelsResponse(BaseModel):
 
 
 class OllamaStatusResponse(BaseModel):
-    status: OllamaConnectionStatus
-    ollama_base_url: str
-    last_success_at: datetime | None = None
-    last_check_at: datetime | None = None
-    message: str | None = None
+    ollama: Literal["online", "offline"]
+    latency_ms: float | None = None
 
 
-class OllamaChatMessage(BaseModel):
+class ChatMessage(BaseModel):
     role: Literal["user", "assistant", "system"]
-    content: str = Field(..., min_length=1)
+    content: str = Field(..., min_length=1, max_length=32000)
 
 
-class OllamaGenerateRequest(BaseModel):
-    model: str = Field(..., min_length=1)
-    messages: list[OllamaChatMessage] = Field(..., min_length=1)
+class GenerateRequest(BaseModel):
+    model: str = Field(..., min_length=1, max_length=128)
+    messages: list[ChatMessage] = Field(..., min_length=1, max_length=80)
     stream: bool = True
-
-
-class OllamaGenerateChunk(BaseModel):
-    """Single NDJSON chunk from Ollama /api/chat (stream=true)."""
-
-    model: str | None = None
-    created_at: str | None = None
-    message: dict[str, Any] | None = None
-    done: bool = False
-    done_reason: str | None = None
-    total_duration: int | None = None
-    load_duration: int | None = None
-    prompt_eval_count: int | None = None
-    eval_count: int | None = None

@@ -1,10 +1,7 @@
-from app.services.chat_service import ChatService
-from app.services.ollama_client import OllamaClient, OllamaConnectionError
-from app.services.reconnect import OllamaReconnectMonitor
+from app.services.ollama_client import OllamaClient, OllamaConnectionError, build_ollama_client
 
 __all__ = [
-    "ChatService",
     "OllamaClient",
     "OllamaConnectionError",
-    "OllamaReconnectMonitor",
+    "build_ollama_client",
 ]

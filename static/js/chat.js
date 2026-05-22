@@ -1,34 +1,27 @@
 /**
- * LocalAI Hub — Phase 5 chat UI
- * SSE via POST /api/v1/chats/{id}/messages?stream=true
- * Adapted for deferred user persistence and error events (never HTTP 500 on Ollama fail).
+ * LocalAI Hub — stateless chat UI
+ * POST /api/v1/generate (NDJSON stream), GET /api/v1/status (5s poll)
  */
 (function () {
   "use strict";
 
   const API = {
+    generate: "/api/v1/generate",
     models: "/api/v1/models",
-    chats: "/api/v1/chats",
-    chat: "/api/v1/chat",
-    ollamaStatus: "/api/v1/ollama/status",
+    status: "/api/v1/status",
   };
 
-  const SEND_DEBOUNCE_MS = 400;
-  const STATUS_POLL_MS = 12_000;
+  const STATUS_POLL_MS = 5000;
 
   const $ = (id) => document.getElementById(id);
 
   const state = {
-    chatId: null,
-    chats: [],
     model: "",
+    ollamaOnline: false,
+    messages: [],
     streaming: false,
     abortController: null,
-    sendTimer: null,
-    lastSendAt: 0,
   };
-
-  /* ——— Markdown ——— */
 
   function configureMarked() {
     if (typeof marked === "undefined") return;
@@ -54,9 +47,7 @@
 
   function highlightCodeBlocks(root) {
     if (typeof hljs === "undefined" || !root) return;
-    root.querySelectorAll("pre code").forEach((block) => {
-      hljs.highlightElement(block);
-    });
+    root.querySelectorAll("pre code").forEach((block) => hljs.highlightElement(block));
   }
 
   function escapeHtml(str) {
@@ -67,91 +58,6 @@
       .replace(/"/g, "&quot;");
   }
 
-  /* ——— SSE ——— */
-
-  function parseSseBlock(block) {
-    let event = "message";
-    let data = "";
-    for (const line of block.split("\n")) {
-      if (line.startsWith("event:")) {
-        event = line.slice(6).trim();
-      } else if (line.startsWith("data:")) {
-        data += line.slice(5).trim();
-      }
-    }
-    let payload = {};
-    if (data) {
-      try {
-        payload = JSON.parse(data);
-      } catch {
-        payload = { detail: data };
-      }
-    }
-    return { event, data: payload };
-  }
-
-  async function streamMessage(chatId, content, model) {
-    const ac = new AbortController();
-    state.abortController = ac;
-
-    const res = await fetch(
-      `${API.chats}/${chatId}/messages?stream=true`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content,
-          model: model || undefined,
-        }),
-        signal: ac.signal,
-      }
-    );
-
-    if (!res.ok) {
-      let detail = `HTTP ${res.status}`;
-      try {
-        const err = await res.json();
-        if (err.detail) {
-          detail =
-            typeof err.detail === "string"
-              ? err.detail
-              : JSON.stringify(err.detail);
-        }
-      } catch {
-        /* ignore */
-      }
-      throw new Error(detail);
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const blocks = buffer.split("\n\n");
-      buffer = blocks.pop() || "";
-      for (const block of blocks) {
-        if (!block.trim()) continue;
-        const { event, data } = parseSseBlock(block);
-        if (event === "token" && data.content) {
-          yield { type: "token", content: data.content };
-        } else if (event === "done") {
-          yield { type: "done", data };
-        } else if (event === "error") {
-          yield {
-            type: "error",
-            detail: data.detail || "Stream error",
-          };
-        }
-      }
-    }
-  }
-
-  /* ——— DOM helpers ——— */
-
   function scrollToBottom() {
     const wrap = $("messagesWrap");
     if (wrap) wrap.scrollTop = wrap.scrollHeight;
@@ -160,15 +66,6 @@
   function setEmptyVisible(visible) {
     const el = $("messagesEmpty");
     if (el) el.hidden = !visible;
-  }
-
-  function clearMessages() {
-    const container = $("messages");
-    if (!container) return;
-    container.querySelectorAll(".message-row, .loading-row").forEach((n) =>
-      n.remove()
-    );
-    setEmptyVisible(true);
   }
 
   function appendMessageRow(role, content, options = {}) {
@@ -181,9 +78,7 @@
     if (options.streaming) bubble.classList.add("streaming");
     if (options.error) bubble.classList.add("error");
 
-    if (options.html) {
-      bubble.innerHTML = content;
-    } else if (role === "assistant" && options.markdown) {
+    if (options.markdown) {
       bubble.innerHTML = renderMarkdown(content);
       highlightCodeBlocks(bubble);
     } else {
@@ -205,7 +100,7 @@
     const spinner = document.createElement("div");
     spinner.className = "loading-spinner";
     spinner.setAttribute("role", "status");
-    spinner.setAttribute("aria-label", "Waiting for response");
+    spinner.setAttribute("aria-label", "Waiting");
     row.appendChild(spinner);
     container.appendChild(row);
     scrollToBottom();
@@ -215,23 +110,25 @@
     $("loadingRow")?.remove();
   }
 
-  function autoResizeTextarea() {
-    const ta = $("promptInput");
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 12 * 24)}px`;
-  }
-
   function updateSendEnabled() {
-    const hasModel = Boolean(state.model);
-    const hasChat = state.chatId != null;
+    const input = $("promptInput");
     const canSend =
-      hasModel && hasChat && !state.streaming && $("promptInput")?.value.trim();
+      state.ollamaOnline &&
+      state.model &&
+      !state.streaming &&
+      input?.value.trim();
     $("sendBtn").disabled = !canSend;
-    $("composerHint").hidden = hasModel;
   }
 
-  /* ——— API ——— */
+  function setStatus(online) {
+    state.ollamaOnline = online;
+    const dot = $("statusDot");
+    if (dot) {
+      dot.dataset.status = online ? "online" : "offline";
+      dot.title = online ? "Ollama online" : "Ollama offline";
+    }
+    updateSendEnabled();
+  }
 
   async function fetchJson(url, options) {
     const res = await fetch(url, options);
@@ -240,22 +137,19 @@
       try {
         const body = await res.json();
         if (body.detail) {
-          detail =
-            typeof body.detail === "string"
-              ? body.detail
-              : JSON.stringify(body.detail);
+          detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
         }
       } catch {
         /* ignore */
       }
       throw new Error(detail);
     }
-    if (res.status === 204) return null;
     return res.json();
   }
 
   async function loadModels() {
     const sel = $("modelSelect");
+    if (!sel) return;
     try {
       const data = await fetchJson(API.models);
       sel.innerHTML = "";
@@ -266,195 +160,99 @@
         opt.textContent = m.name;
         sel.appendChild(opt);
       }
-      if (!models.length) {
-        sel.innerHTML = '<option value="">No models available</option>';
-        state.model = "";
-      } else {
+      if (models.length) {
         state.model = sel.value;
+      } else {
+        sel.innerHTML = '<option value="">No models</option>';
+        state.model = "";
       }
-    } catch (e) {
-      sel.innerHTML = '<option value="">Models unavailable</option>';
+    } catch {
+      sel.innerHTML = '<option value="">Unavailable</option>';
       state.model = "";
-      console.warn("Models:", e.message);
     }
     updateSendEnabled();
   }
 
-  async function pollConnection() {
-    const badge = $("connectionBadge");
-    const label = $("connectionLabel");
+  async function pollStatus() {
+    const wasOnline = state.ollamaOnline;
     try {
-      const data = await fetchJson(API.ollamaStatus);
-      const status = data.status || "offline";
-      badge.dataset.status = status;
-      const labels = {
-        online: "Connected",
-        offline: "Offline",
-        degraded: "Degraded",
-      };
-      label.textContent = labels[status] || status;
-      badge.title = data.message || data.ollama_base_url || "";
+      const data = await fetchJson(API.status);
+      const online = data.ollama === "online";
+      setStatus(online);
+      if (online && !wasOnline) await loadModels();
     } catch {
-      badge.dataset.status = "offline";
-      label.textContent = "Offline";
+      setStatus(false);
     }
   }
 
-  async function loadChatList() {
-    try {
-      state.chats = await fetchJson(API.chats);
-    } catch {
-      state.chats = [];
-    }
-    renderChatList();
-  }
+  async function* streamGenerate(messages) {
+    const ac = new AbortController();
+    state.abortController = ac;
 
-  function resetChatUi() {
-    state.chatId = null;
-    $("chatTitle").textContent = "New chat";
-    clearMessages();
-    setActiveChatInList(-1);
-    updateSendEnabled();
-  }
-
-  async function createChat() {
-    if (!state.model) {
-      $("composerHint").hidden = false;
-      $("composerHint").textContent = "Select a model before starting a chat.";
-      return null;
-    }
-    const chat = await fetchJson(API.chat, {
+    const res = await fetch(API.generate, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: state.model }),
+      body: JSON.stringify({
+        model: state.model,
+        messages,
+        stream: true,
+      }),
+      signal: ac.signal,
     });
-    state.chatId = chat.id;
-    $("chatTitle").textContent = chat.title || "New chat";
-    clearMessages();
-    await loadChatList();
-    setActiveChatInList(chat.id);
-    closeSidebarMobile();
-    updateSendEnabled();
-    return chat;
-  }
 
-  async function deleteChat(chatId, event) {
-    event?.preventDefault();
-    event?.stopPropagation();
-    if (state.streaming) return;
-    if (!window.confirm("Delete this chat? This cannot be undone.")) return;
-
-    try {
-      await fetch(`${API.chats}/${chatId}`, { method: "DELETE" });
-    } catch (e) {
-      console.warn("Delete chat:", e.message);
-      return;
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try {
+        const err = await res.json();
+        if (err.detail) detail = typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail);
+      } catch {
+        /* ignore */
+      }
+      throw new Error(detail);
     }
 
-    state.chats = state.chats.filter((c) => c.id !== chatId);
-    if (state.chatId === chatId) {
-      state.abortController?.abort();
-      resetChatUi();
-      if (state.chats.length > 0) {
-        await loadChat(state.chats[0].id);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        const stripped = line.trim();
+        if (!stripped) continue;
+        let chunk;
+        try {
+          chunk = JSON.parse(stripped);
+        } catch {
+          continue;
+        }
+        if (chunk.error) {
+          yield { type: "error", detail: chunk.error };
+          return;
+        }
+        const token = chunk.message?.content;
+        if (token) yield { type: "token", content: token };
+        if (chunk.done) yield { type: "done" };
       }
     }
-    renderChatList();
-  }
-
-  async function loadChat(chatId) {
-    if (state.streaming) return;
-    state.abortController?.abort();
-    const detail = await fetchJson(`${API.chats}/${chatId}`);
-    state.chatId = detail.id;
-    $("chatTitle").textContent = detail.title;
-    if (detail.model) {
-      state.model = detail.model;
-      const sel = $("modelSelect");
-      if (sel && [...sel.options].some((o) => o.value === detail.model)) {
-        sel.value = detail.model;
-      }
-    }
-    clearMessages();
-    for (const msg of detail.messages || []) {
-      appendMessageRow(msg.role, msg.content, {
-        markdown: msg.role === "assistant",
-      });
-    }
-    setActiveChatInList(chatId);
-    closeSidebarMobile();
-    updateSendEnabled();
-  }
-
-  function renderChatList() {
-    const list = $("chatList");
-    if (!list) return;
-    list.innerHTML = "";
-    for (const chat of state.chats) {
-      const li = document.createElement("li");
-      li.className = "chat-list-item";
-
-      const row = document.createElement("div");
-      row.className = "chat-list-row";
-
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "chat-list-btn";
-      btn.dataset.chatId = String(chat.id);
-      btn.textContent = chat.title || `Chat #${chat.id}`;
-      if (chat.id === state.chatId) btn.classList.add("active");
-      btn.addEventListener("click", () => loadChat(chat.id));
-
-      const del = document.createElement("button");
-      del.type = "button";
-      del.className = "chat-list-delete";
-      del.setAttribute("aria-label", `Delete ${chat.title || "chat"}`);
-      del.title = "Delete chat";
-      del.innerHTML = '<span aria-hidden="true">&times;</span>';
-      del.addEventListener("click", (e) => deleteChat(chat.id, e));
-
-      row.appendChild(btn);
-      row.appendChild(del);
-      li.appendChild(row);
-      list.appendChild(li);
-    }
-  }
-
-  function setActiveChatInList(chatId) {
-    document.querySelectorAll(".chat-list-btn").forEach((btn) => {
-      btn.classList.toggle(
-        "active",
-        Number(btn.dataset.chatId) === chatId
-      );
-    });
-  }
-
-  /* ——— Send flow ——— */
-
-  async function ensureChat() {
-    if (state.chatId != null) return state.chatId;
-    const chat = await createChat();
-    return chat?.id ?? null;
   }
 
   async function handleSend() {
     const content = $("promptInput").value.trim();
-    if (!content || state.streaming || !state.model) return;
-
-    const now = Date.now();
-    if (now - state.lastSendAt < SEND_DEBOUNCE_MS) return;
-    state.lastSendAt = now;
-
-    const chatId = await ensureChat();
-    if (!chatId) return;
+    if (!content || state.streaming || !state.model || !state.ollamaOnline) return;
 
     $("promptInput").value = "";
     autoResizeTextarea();
     updateSendEnabled();
 
+    state.messages.push({ role: "user", content });
     appendMessageRow("user", content);
-    showLoading();
 
+    showLoading();
     state.streaming = true;
     updateSendEnabled();
 
@@ -462,17 +260,11 @@
     let accumulated = "";
 
     try {
-      for await (const chunk of streamMessage(
-        chatId,
-        content,
-        state.model
-      )) {
+      for await (const chunk of streamGenerate(state.messages)) {
         if (chunk.type === "token") {
           if (!assistantBubble) {
             hideLoading();
-            assistantBubble = appendMessageRow("assistant", "", {
-              streaming: true,
-            });
+            assistantBubble = appendMessageRow("assistant", "", { streaming: true });
           }
           accumulated += chunk.content;
           assistantBubble.textContent = accumulated;
@@ -481,23 +273,20 @@
           hideLoading();
           if (assistantBubble) {
             assistantBubble.classList.remove("streaming");
-            assistantBubble.innerHTML = renderMarkdown(
-              chunk.data.content || accumulated
-            );
+            assistantBubble.innerHTML = renderMarkdown(accumulated);
             highlightCodeBlocks(assistantBubble);
-          } else if (accumulated) {
-            appendMessageRow("assistant", accumulated, { markdown: true });
           }
-          await loadChatList();
+          state.messages.push({ role: "assistant", content: accumulated });
           break;
         } else if (chunk.type === "error") {
           hideLoading();
+          const msg = chunk.detail || "Generation failed";
           if (assistantBubble) {
             assistantBubble.classList.remove("streaming");
             assistantBubble.classList.add("error");
-            assistantBubble.textContent = chunk.detail;
+            assistantBubble.textContent = msg;
           } else {
-            appendMessageRow("assistant", chunk.detail, { error: true });
+            appendMessageRow("assistant", msg, { error: true });
           }
           break;
         }
@@ -505,11 +294,7 @@
     } catch (e) {
       hideLoading();
       if (e.name === "AbortError") return;
-      appendMessageRow(
-        "assistant",
-        e.message || "Request failed",
-        { error: true }
-      );
+      appendMessageRow("assistant", e.message || "Request failed", { error: true });
     } finally {
       state.streaming = false;
       state.abortController = null;
@@ -518,37 +303,17 @@
     }
   }
 
-  function debouncedSend() {
-    if (state.streaming) return;
-    if (state.sendTimer) clearTimeout(state.sendTimer);
-    const elapsed = Date.now() - state.lastSendAt;
-    const delay = elapsed < SEND_DEBOUNCE_MS ? SEND_DEBOUNCE_MS - elapsed : 0;
-    state.sendTimer = setTimeout(() => {
-      state.sendTimer = null;
-      handleSend();
-    }, delay);
+  function autoResizeTextarea() {
+    const ta = $("promptInput");
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, 12 * 24)}px`;
   }
-
-  /* ——— Sidebar mobile ——— */
-
-  function openSidebarMobile() {
-    $("sidebar")?.classList.add("open");
-    $("sidebarBackdrop")?.removeAttribute("hidden");
-    $("menuBtn")?.setAttribute("aria-expanded", "true");
-  }
-
-  function closeSidebarMobile() {
-    $("sidebar")?.classList.remove("open");
-    $("sidebarBackdrop")?.setAttribute("hidden", "");
-    $("menuBtn")?.setAttribute("aria-expanded", "false");
-  }
-
-  /* ——— Init ——— */
 
   function bindEvents() {
     $("composer")?.addEventListener("submit", (e) => {
       e.preventDefault();
-      debouncedSend();
+      handleSend();
     });
 
     $("promptInput")?.addEventListener("input", () => {
@@ -559,7 +324,7 @@
     $("promptInput")?.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        debouncedSend();
+        handleSend();
       }
     });
 
@@ -567,33 +332,19 @@
       state.model = e.target.value;
       updateSendEnabled();
     });
-
-    $("newChatBtn")?.addEventListener("click", async () => {
-      if (state.streaming) return;
-      state.abortController?.abort();
-      resetChatUi();
-      closeSidebarMobile();
-      await createChat();
-    });
-
-    $("menuBtn")?.addEventListener("click", openSidebarMobile);
-    $("sidebarClose")?.addEventListener("click", closeSidebarMobile);
-    $("sidebarBackdrop")?.addEventListener("click", closeSidebarMobile);
   }
 
   async function init() {
     configureMarked();
     bindEvents();
     autoResizeTextarea();
-    await loadModels();
-    await pollConnection();
-    setInterval(pollConnection, STATUS_POLL_MS);
-    await loadChatList();
-
-    if (state.chats.length > 0 && state.chatId == null) {
-      await loadChat(state.chats[0].id);
+    await pollStatus();
+    setInterval(pollStatus, STATUS_POLL_MS);
+    if (state.ollamaOnline) await loadModels();
+    else {
+      const sel = $("modelSelect");
+      if (sel) sel.innerHTML = '<option value="">Offline</option>';
     }
-
     updateSendEnabled();
   }
 

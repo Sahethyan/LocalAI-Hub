@@ -2,7 +2,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.config.settings import Settings, get_settings
 from app.dependencies import get_ollama_client, ollama_unavailable
 from app.schemas.ollama import OllamaModelsResponse
 from app.services.ollama_client import OllamaClient, OllamaConnectionError

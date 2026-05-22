@@ -9,20 +9,12 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
 
 from app.config.settings import PROJECT_ROOT, get_settings
-from app.models.database import async_session_factory, init_db
-from app.services.settings_service import bootstrap_runtime_settings
-from app.routers import ws
 from app.routers.v1 import api_v1_router
 from app.services.ollama_client import build_ollama_client
-from app.services.reconnect import OllamaReconnectMonitor
 from app.utils.lan_check import LanOnlyMiddleware
 from app.utils.logging import setup_logging
-from app.utils.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -35,36 +27,23 @@ async def lifespan(app: FastAPI):
     cfg = get_settings()
     app.state.settings = cfg
 
-    await init_db()
-    logger.info("Database initialized at %s", cfg.database_path)
-
-    async with async_session_factory() as session:
-        await bootstrap_runtime_settings(app, session)
-
     app.state.http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(30.0, connect=3.0),
         limits=httpx.Limits(max_connections=4, max_keepalive_connections=2),
         trust_env=False,
     )
-    runtime = app.state.runtime_config
     app.state.ollama_client = build_ollama_client(
         app.state.http_client,
-        base_url=runtime.ollama_base_url,
+        base_url=cfg.ollama_base_url,
         cache_ttl_seconds=float(cfg.ollama_cache_ttl_seconds),
         health_timeout_seconds=cfg.ollama_health_timeout_seconds,
     )
-    app.state.ollama_monitor = OllamaReconnectMonitor(
-        app.state.ollama_client,
-        interval_seconds=float(cfg.ollama_reconnect_interval_seconds),
-    )
-    app.state.ollama_monitor.start()
-    logger.info("HTTP client pool ready (Ollama: %s)", runtime.ollama_base_url)
+    logger.info("Ollama proxy ready: %s", cfg.ollama_base_url)
 
     yield
 
-    await app.state.ollama_monitor.stop()
     await app.state.http_client.aclose()
-    logger.info("HTTP client pool closed")
+    logger.info("HTTP client closed")
 
 
 def _cors_origins(cfg) -> list[str]:
@@ -81,16 +60,12 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="LocalAI Hub",
-        description="Lightweight local AI web interface for Raspberry Pi",
-        version="0.1.0",
+        description="Lightweight LAN AI chat gateway for Raspberry Pi",
+        version="1.0.0",
         lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
     )
-
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    app.add_middleware(SlowAPIMiddleware)
 
     app.add_middleware(LanOnlyMiddleware)
 
@@ -99,12 +74,11 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=origins if origins else ["http://localhost", "http://127.0.0.1"],
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
 
     app.include_router(api_v1_router)
-    app.include_router(ws.router, tags=["websocket"])
 
     if STATIC_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -114,72 +88,21 @@ def create_app() -> FastAPI:
         jinja_env = Environment(
             loader=FileSystemLoader(str(TEMPLATES_DIR)),
             autoescape=select_autoescape(["html", "xml"]),
-            auto_reload=True,
+            auto_reload=False,
         )
         templates = Jinja2Templates(env=jinja_env)
-        app.state.templates = templates
 
-    def _chat_template(request: Request):
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    @app.get("/chat", response_class=HTMLResponse, include_in_schema=False)
+    async def chat_page(request: Request):
         if templates is None:
             return HTMLResponse(
                 "<h1>LocalAI Hub</h1><p>API running. See <a href='/docs'>/docs</a>.</p>",
                 status_code=503,
             )
-        return templates.TemplateResponse(
-            request=request,
-            name="chat.html",
-            context={},
-        )
-
-    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-    async def index(request: Request):
-        """Main chat UI (Phase 5)."""
-        return _chat_template(request)
-
-    @app.get("/chat", response_class=HTMLResponse, include_in_schema=False)
-    async def chat_page(request: Request):
-        """Alias for / (bookmark-friendly)."""
-        return _chat_template(request)
-
-    @app.get("/settings", response_class=HTMLResponse, include_in_schema=False)
-    async def settings_page(request: Request):
-        if templates is None:
-            return HTMLResponse("<p>Settings — coming in Phase 6.</p>")
-        return templates.TemplateResponse(
-            request=request,
-            name="settings.html",
-            context={},
-        )
-
-    @app.get("/monitor", response_class=HTMLResponse, include_in_schema=False)
-    async def monitor_page(request: Request):
-        if templates is None:
-            return HTMLResponse("<p>Monitor — coming in Phase 7.</p>")
-        return templates.TemplateResponse(
-            request=request,
-            name="page_stub.html",
-            context={
-                "title": "Monitor — LocalAI Hub",
-                "message": "System monitor — planned for Phase 7.",
-            },
-        )
-
-    @app.get("/stream-test", response_class=HTMLResponse, include_in_schema=False)
-    async def stream_test_page(request: Request):
-        """Minimal UI to verify Phase 4 SSE streaming end-to-end."""
-        if templates is None:
-            return HTMLResponse(
-                "<p>Templates not found. Use curl against POST /api/v1/chats/{id}/messages</p>",
-                status_code=503,
-            )
-        return templates.TemplateResponse(
-            request=request,
-            name="stream_test.html",
-            context={},
-        )
+        return templates.TemplateResponse(request=request, name="chat.html", context={})
 
     return app
-
 
 
 app = create_app()

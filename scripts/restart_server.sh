@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-PORT="${PORT:-8081}"
+PORT="${PORT:-8080}"
 HOST="${HOST:-0.0.0.0}"
 
 echo "Stopping anything on port ${PORT}..."
@@ -44,5 +44,5 @@ fi
 # shellcheck source=/dev/null
 source venv/bin/activate
 
-echo "Starting LocalAI Hub on http://${HOST}:${PORT} (with --reload)..."
-exec uvicorn app.main:app --host "$HOST" --port "$PORT" --reload
+echo "Starting LocalAI Hub on http://${HOST}:${PORT}..."
+exec uvicorn app.main:app --host "$HOST" --port "$PORT" --workers 1

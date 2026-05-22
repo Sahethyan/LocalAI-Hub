@@ -1,12 +1,23 @@
 from fastapi import APIRouter
 
-from app.utils.rate_limit import limiter
-
 router = APIRouter()
 
 
 @router.get("/health")
-@limiter.exempt
 async def health() -> dict:
-    """Liveness check for monitoring and Phase 1 verification."""
-    return {"status": "ok"}
+    """Pi liveness + light system stats."""
+    payload: dict = {"status": "ok"}
+
+    try:
+        import psutil
+
+        payload["cpu_percent"] = psutil.cpu_percent(interval=None)
+        mem = psutil.virtual_memory()
+        payload["memory_mb"] = {
+            "used": round(mem.used / (1024 * 1024)),
+            "total": round(mem.total / (1024 * 1024)),
+        }
+    except Exception:
+        pass
+
+    return payload

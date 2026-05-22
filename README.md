@@ -1,8 +1,14 @@
 # LocalAI Hub
 
-Lightweight local AI web interface: **FastAPI + vanilla frontend** on Raspberry Pi, with **Ollama on a separate laptop** over LAN.
+Minimal LAN AI chat gateway for **Raspberry Pi Zero W**: FastAPI + vanilla JS on the Pi, **Ollama on a remote laptop**.
 
-## Phase 1 — Quick start
+```
+Browser → Pi (FastAPI + UI) → Laptop (Ollama API)
+```
+
+No database, no chat history, no settings UI — single-session streaming chat only.
+
+## Quick start
 
 ```bash
 cd "LocalAI Hub"
@@ -12,25 +18,26 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env — set OLLAMA_BASE_URL to your laptop IP
 
-python scripts/init_db.py
 uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
-Verify:
+Open `http://<pi-ip>:8080` from a device on your LAN.
 
-```bash
-curl http://localhost:8080/api/v1/health
-# {"status":"ok"}
-```
+## API (`/api/v1`)
 
-Logs are written to `logs/app.log`. OpenAPI docs: `http://<pi-ip>:8080/docs`.
-
-## Project layout
-
-See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the full phase-by-phase build guide.
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/generate` | Stream chat via Ollama (NDJSON) |
+| GET | `/models` | List models from Ollama |
+| GET | `/health` | Pi liveness (+ CPU/RAM) |
+| GET | `/status` | Ollama online/offline + latency |
 
 ## Configuration
 
-All settings are loaded from `.env` via `app/config/settings.py`. Copy `.env.example` and adjust `OLLAMA_BASE_URL`, `LAN_ONLY`, and `ALLOWED_SUBNETS` for your network.
+All settings come from `.env` via `app/config/settings.py`. The only required change is `OLLAMA_BASE_URL`.
 
-Phase 0 (Pi OS + Ollama on laptop) can be done later; Phase 1 runs without a live Ollama connection.
+Run with a single worker on the Pi:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 1
+```

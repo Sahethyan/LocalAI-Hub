@@ -45,11 +45,6 @@ class OllamaClient:
     def base_url(self) -> str:
         return self._base_url
 
-    def set_base_url(self, base_url: str) -> None:
-        """Hot-reload Ollama endpoint without restarting the server."""
-        self._base_url = base_url.rstrip("/")
-        self.invalidate_models_cache()
-
     def _url(self, path: str) -> str:
         return f"{self._base_url}{path}"
 
