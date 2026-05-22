@@ -119,7 +119,22 @@ def create_app() -> FastAPI:
             context={"title": "LocalAI Hub"},
         )
 
+    @app.get("/stream-test", response_class=HTMLResponse, include_in_schema=False)
+    async def stream_test_page(request: Request):
+        """Minimal UI to verify Phase 4 SSE streaming end-to-end."""
+        if templates is None:
+            return HTMLResponse(
+                "<p>Templates not found. Use curl against POST /api/v1/chats/{id}/messages</p>",
+                status_code=503,
+            )
+        return templates.TemplateResponse(
+            request=request,
+            name="stream_test.html",
+            context={},
+        )
+
     return app
+
 
 
 app = create_app()
