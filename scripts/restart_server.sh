@@ -22,13 +22,19 @@ fi
 sleep 1
 
 if ss -tlnp 2>/dev/null | grep -q ":${PORT} "; then
+  STUCK_PID=""
+  if command -v lsof >/dev/null 2>&1; then
+    STUCK_PID=$(lsof -t -i ":${PORT}" -sTCP:LISTEN 2>/dev/null | head -1)
+  fi
   echo ""
-  echo "Port ${PORT} is still in use."
-  echo "  1. Find the Cursor/terminal tab running uvicorn on ${PORT}"
-  echo "  2. Press Ctrl+C in that terminal"
-  echo "  3. Run this script again: ./scripts/restart_server.sh"
+  echo "Port ${PORT} is still in use${STUCK_PID:+ (PID ${STUCK_PID})}."
   echo ""
-  echo "Or from your shell: fuser -k ${PORT}/tcp"
+  echo "If fuser/kill say 'Permission denied', the old server was started by Cursor"
+  echo "and is stuck in cursor_sandbox. Use one of these:"
+  echo ""
+  echo "  sudo kill -9 ${STUCK_PID:-<PID>}    # enter your password"
+  echo "  # or: quit and restart Cursor IDE, then run this script again"
+  echo ""
   exit 1
 fi
 
