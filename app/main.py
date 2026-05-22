@@ -15,6 +15,8 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config.settings import PROJECT_ROOT, get_settings
 from app.models.database import init_db
 from app.routers.v1 import api_v1_router
+from app.services.ollama_client import build_ollama_client
+from app.services.reconnect import OllamaReconnectMonitor
 from app.utils.lan_check import LanOnlyMiddleware
 from app.utils.logging import setup_logging
 from app.utils.rate_limit import limiter
@@ -37,10 +39,22 @@ async def lifespan(app: FastAPI):
         timeout=httpx.Timeout(30.0, connect=3.0),
         limits=httpx.Limits(max_connections=4, max_keepalive_connections=2),
     )
+    app.state.ollama_client = build_ollama_client(
+        app.state.http_client,
+        base_url=cfg.ollama_base_url,
+        cache_ttl_seconds=float(cfg.ollama_cache_ttl_seconds),
+        health_timeout_seconds=cfg.ollama_health_timeout_seconds,
+    )
+    app.state.ollama_monitor = OllamaReconnectMonitor(
+        app.state.ollama_client,
+        interval_seconds=float(cfg.ollama_reconnect_interval_seconds),
+    )
+    app.state.ollama_monitor.start()
     logger.info("HTTP client pool ready (Ollama: %s)", cfg.ollama_base_url)
 
     yield
 
+    await app.state.ollama_monitor.stop()
     await app.state.http_client.aclose()
     logger.info("HTTP client pool closed")
 
