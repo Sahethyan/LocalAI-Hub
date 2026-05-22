@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.settings import Settings, get_settings
-from app.dependencies import get_ollama_client, ollama_unavailable
+from app.dependencies import get_ollama_client
 from app.models.database import async_session_factory
 from app.schemas.chat import (
     ChatCreate,

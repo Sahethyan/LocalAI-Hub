@@ -14,6 +14,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.config.settings import PROJECT_ROOT, get_settings
 from app.models.database import init_db
+from app.routers import ws
 from app.routers.v1 import api_v1_router
 from app.services.ollama_client import build_ollama_client
 from app.services.reconnect import OllamaReconnectMonitor
@@ -96,6 +97,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(api_v1_router)
+    app.include_router(ws.router, tags=["websocket"])
 
     if STATIC_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
