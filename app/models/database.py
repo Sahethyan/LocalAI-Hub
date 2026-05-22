@@ -58,6 +58,15 @@ class Message(Base):
     chat: Mapped["Chat"] = relationship(back_populates="messages")
 
 
+class AppSetting(Base):
+    """Key-value store for user-editable hub settings (Phase 6)."""
+
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+
+
 _settings = get_settings()
 engine = create_async_engine(
     _resolve_database_url(_settings.database_url),

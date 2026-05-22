@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, Request, status
 from app.config.settings import Settings, get_settings
 from app.services.ollama_client import OllamaClient, OllamaConnectionError, build_ollama_client
 from app.services.reconnect import OllamaReconnectMonitor
+from app.services.settings_service import RuntimeConfig, get_runtime_config
 
 
 def get_http_client(request: Request) -> httpx.AsyncClient:
@@ -26,6 +27,10 @@ def get_ollama_client(
         cache_ttl_seconds=float(cfg.ollama_cache_ttl_seconds),
         health_timeout_seconds=cfg.ollama_health_timeout_seconds,
     )
+
+
+def get_runtime_settings(request: Request) -> RuntimeConfig:
+    return get_runtime_config(request.app)
 
 
 def get_ollama_monitor(request: Request) -> OllamaReconnectMonitor:

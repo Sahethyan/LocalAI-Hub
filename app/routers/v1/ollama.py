@@ -4,8 +4,11 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
-from app.config.settings import Settings, get_settings
-from app.dependencies import get_ollama_client, get_ollama_monitor, ollama_unavailable
+from app.dependencies import (
+    get_ollama_client,
+    get_ollama_monitor,
+    ollama_unavailable,
+)
 from app.schemas.ollama import OllamaGenerateRequest, OllamaStatusResponse
 from app.services.ollama_client import OllamaClient, OllamaConnectionError
 from app.services.reconnect import OllamaReconnectMonitor
@@ -16,13 +19,13 @@ router = APIRouter(prefix="/ollama")
 @router.get("/status", response_model=OllamaStatusResponse)
 async def ollama_status(
     monitor: Annotated[OllamaReconnectMonitor, Depends(get_ollama_monitor)],
-    cfg: Annotated[Settings, Depends(get_settings)],
+    ollama: Annotated[OllamaClient, Depends(get_ollama_client)],
 ) -> OllamaStatusResponse:
     """Connection indicator data for UI polling."""
     snap = monitor.snapshot()
     return OllamaStatusResponse(
         status=snap["status"],
-        ollama_base_url=cfg.ollama_base_url,
+        ollama_base_url=ollama.base_url,
         last_success_at=snap["last_success_at"],
         last_check_at=snap["last_check_at"],
         message=snap["message"],

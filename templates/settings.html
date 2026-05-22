@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Settings — LocalAI Hub{% endblock %}
+
+{% block body %}
+<div class="settings-page">
+  <header class="settings-header">
+    <a href="/" class="settings-back">← Chat</a>
+    <h1 class="settings-title">Settings</h1>
+    <button type="button" class="btn-icon" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+      <span aria-hidden="true">◐</span>
+    </button>
+  </header>
+
+  <main class="settings-main">
+    <form class="settings-form" id="settingsForm" autocomplete="off">
+      <section class="settings-section">
+        <h2 class="settings-section-title">Ollama (laptop)</h2>
+        <p class="settings-hint">
+          Point the Pi at your inference machine on the LAN. Changes apply immediately without restarting the server.
+        </p>
+
+        <label class="settings-field">
+          <span class="settings-label">Host (IP or hostname)</span>
+          <input
+            type="text"
+            id="ollamaHost"
+            name="ollama_host"
+            required
+            placeholder="192.168.1.100"
+            spellcheck="false"
+          />
+        </label>
+
+        <label class="settings-field">
+          <span class="settings-label">Port</span>
+          <input
+            type="number"
+            id="ollamaPort"
+            name="ollama_port"
+            min="1"
+            max="65535"
+            value="11434"
+            required
+          />
+        </label>
+
+        <p class="settings-preview">
+          Resolved URL: <code id="ollamaUrlPreview">—</code>
+        </p>
+      </section>
+
+      <section class="settings-section">
+        <h2 class="settings-section-title">Chat</h2>
+        <label class="settings-field">
+          <span class="settings-label">Context messages</span>
+          <input
+            type="number"
+            id="contextMessages"
+            name="chat_context_messages"
+            min="1"
+            max="200"
+            value="40"
+            required
+          />
+          <span class="settings-field-hint">Max messages from history sent to Ollama per request (1–200).</span>
+        </label>
+      </section>
+
+      <div class="settings-actions">
+        <button type="submit" class="btn btn-primary settings-save" id="saveSettingsBtn">
+          Save settings
+        </button>
+      </div>
+
+      <p class="settings-status" id="settingsStatus" hidden role="status"></p>
+    </form>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/app.js"></script>
+<script src="/static/js/settings.js"></script>
+{% endblock %}

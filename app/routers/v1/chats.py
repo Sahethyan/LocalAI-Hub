@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config.settings import Settings, get_settings
-from app.dependencies import get_ollama_client
+from app.dependencies import get_ollama_client, get_runtime_settings
+from app.services.settings_service import RuntimeConfig
 from app.models.database import async_session_factory
 from app.schemas.chat import (
     ChatCreate,
@@ -93,7 +93,7 @@ async def send_message(
     body: StreamMessageCreate,
     service: Annotated[ChatService, Depends(get_chat_service)],
     ollama: Annotated[OllamaClient, Depends(get_ollama_client)],
-    cfg: Annotated[Settings, Depends(get_settings)],
+    runtime: Annotated[RuntimeConfig, Depends(get_runtime_settings)],
     stream: Annotated[
         bool,
         Query(description="Stream assistant reply via SSE when true"),
@@ -133,7 +133,7 @@ async def send_message(
                 body.content,
                 model,
                 ollama,
-                context_limit=cfg.chat_context_messages,
+                context_limit=runtime.chat_context_messages,
             ):
                 yield format_sse_json(item["event"], item["data"])
         except Exception as exc:

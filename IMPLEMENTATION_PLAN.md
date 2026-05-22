@@ -10,7 +10,7 @@ A phase-by-phase guide to building a lightweight local AI web interface: **FastA
 - [x] **Phase 3** — Ollama Integration Service
 - [x] **Phase 4** — Streaming Chat API
 - [x] **Phase 5** — Frontend: Core UI
-- [ ] **Phase 6** — Sidebar, History & UX Polish
+- [x] **Phase 6** — Sidebar, History & UX Polish
 - [ ] **Phase 7** — System Monitor & Health Pages
 - [ ] **Phase 8** — Security, Rate Limiting & REST API
 - [ ] **Phase 9** — Deployment & Operations
@@ -355,7 +355,9 @@ curl http://<PI>:8080/api/v1/models
 
 ---
 
-## [ ] Phase 6 — Sidebar, History & UX Polish (Days 9–11)
+## [x] Phase 6 — Sidebar, History & UX Polish (Days 9–11) ✅
+
+**Status:** Completed
 
 **Goal:** Complete main features 1–11 from requirements.
 
@@ -535,7 +537,7 @@ WantedBy=multi-user.target
 | 3 | Ollama client + status | 0, 1 | [x] ✅ |
 | 4 | Streaming API | 2, 3 | [x] ✅ |
 | 5 | Frontend core chat | 4 | [x] ✅ |
-| 6 | Sidebar, MD, settings UI | 5 | [ ] |
+| 6 | Sidebar, MD, settings UI | 5 | [x] |
 | 7 | System monitor page | 1, 3 | [ ] |
 | 8 | Auth, rate limit, REST export | 4 | [ ] |
 | 9 | systemd, setup.sh, README deploy | 1–8 | [ ] |

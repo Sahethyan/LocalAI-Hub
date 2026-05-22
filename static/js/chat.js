@@ -15,7 +15,6 @@
 
   const SEND_DEBOUNCE_MS = 400;
   const STATUS_POLL_MS = 12_000;
-  const THEME_KEY = "localai-hub-theme";
 
   const $ = (id) => document.getElementById(id);
 
@@ -28,37 +27,6 @@
     sendTimer: null,
     lastSendAt: 0,
   };
-
-  /* ——— Theme ——— */
-
-  function applyTheme(theme) {
-    const root = $("html-root");
-    const isLight = theme === "light";
-    root.classList.toggle("theme-dark", !isLight);
-    root.classList.toggle("theme-light", isLight);
-    const hljsLink = $("hljs-theme");
-    if (hljsLink) {
-      hljsLink.href = isLight
-        ? "https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css"
-        : "https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css";
-    }
-  }
-
-  function initTheme() {
-    const saved = localStorage.getItem(THEME_KEY);
-    const prefersLight =
-      saved === "light" ||
-      (saved === null &&
-        window.matchMedia("(prefers-color-scheme: light)").matches);
-    applyTheme(prefersLight ? "light" : "dark");
-    $("themeToggle")?.addEventListener("click", () => {
-      const next = $("html-root").classList.contains("theme-light")
-        ? "dark"
-        : "light";
-      localStorage.setItem(THEME_KEY, next);
-      applyTheme(next);
-    });
-  }
 
   /* ——— Markdown ——— */
 
@@ -341,6 +309,14 @@
     renderChatList();
   }
 
+  function resetChatUi() {
+    state.chatId = null;
+    $("chatTitle").textContent = "New chat";
+    clearMessages();
+    setActiveChatInList(-1);
+    updateSendEnabled();
+  }
+
   async function createChat() {
     if (!state.model) {
       $("composerHint").hidden = false;
@@ -360,6 +336,30 @@
     closeSidebarMobile();
     updateSendEnabled();
     return chat;
+  }
+
+  async function deleteChat(chatId, event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (state.streaming) return;
+    if (!window.confirm("Delete this chat? This cannot be undone.")) return;
+
+    try {
+      await fetch(`${API.chats}/${chatId}`, { method: "DELETE" });
+    } catch (e) {
+      console.warn("Delete chat:", e.message);
+      return;
+    }
+
+    state.chats = state.chats.filter((c) => c.id !== chatId);
+    if (state.chatId === chatId) {
+      state.abortController?.abort();
+      resetChatUi();
+      if (state.chats.length > 0) {
+        await loadChat(state.chats[0].id);
+      }
+    }
+    renderChatList();
   }
 
   async function loadChat(chatId) {
@@ -388,10 +388,15 @@
 
   function renderChatList() {
     const list = $("chatList");
+    if (!list) return;
     list.innerHTML = "";
     for (const chat of state.chats) {
       const li = document.createElement("li");
       li.className = "chat-list-item";
+
+      const row = document.createElement("div");
+      row.className = "chat-list-row";
+
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "chat-list-btn";
@@ -399,7 +404,18 @@
       btn.textContent = chat.title || `Chat #${chat.id}`;
       if (chat.id === state.chatId) btn.classList.add("active");
       btn.addEventListener("click", () => loadChat(chat.id));
-      li.appendChild(btn);
+
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "chat-list-delete";
+      del.setAttribute("aria-label", `Delete ${chat.title || "chat"}`);
+      del.title = "Delete chat";
+      del.innerHTML = '<span aria-hidden="true">&times;</span>';
+      del.addEventListener("click", (e) => deleteChat(chat.id, e));
+
+      row.appendChild(btn);
+      row.appendChild(del);
+      li.appendChild(row);
       list.appendChild(li);
     }
   }
@@ -555,10 +571,8 @@
     $("newChatBtn")?.addEventListener("click", async () => {
       if (state.streaming) return;
       state.abortController?.abort();
-      state.chatId = null;
-      $("chatTitle").textContent = "New chat";
-      clearMessages();
-      setActiveChatInList(-1);
+      resetChatUi();
+      closeSidebarMobile();
       await createChat();
     });
 
@@ -569,7 +583,6 @@
 
   async function init() {
     configureMarked();
-    initTheme();
     bindEvents();
     autoResizeTextarea();
     await loadModels();

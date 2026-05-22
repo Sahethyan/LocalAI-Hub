@@ -13,7 +13,7 @@ from app.models.database import init_db  # noqa: E402
 
 async def main() -> None:
     await init_db()
-    print("Database tables created (chats, messages).")
+    print("Database tables created (chats, messages, settings).")
 
 
 if __name__ == "__main__":

@@ -13,7 +13,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.config.settings import PROJECT_ROOT, get_settings
-from app.models.database import init_db
+from app.models.database import async_session_factory, init_db
+from app.services.settings_service import bootstrap_runtime_settings
 from app.routers import ws
 from app.routers.v1 import api_v1_router
 from app.services.ollama_client import build_ollama_client
@@ -36,14 +37,18 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized at %s", cfg.database_path)
 
+    async with async_session_factory() as session:
+        await bootstrap_runtime_settings(app, session)
+
     app.state.http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(30.0, connect=3.0),
         limits=httpx.Limits(max_connections=4, max_keepalive_connections=2),
         trust_env=False,
     )
+    runtime = app.state.runtime_config
     app.state.ollama_client = build_ollama_client(
         app.state.http_client,
-        base_url=cfg.ollama_base_url,
+        base_url=runtime.ollama_base_url,
         cache_ttl_seconds=float(cfg.ollama_cache_ttl_seconds),
         health_timeout_seconds=cfg.ollama_health_timeout_seconds,
     )
@@ -52,7 +57,7 @@ async def lifespan(app: FastAPI):
         interval_seconds=float(cfg.ollama_reconnect_interval_seconds),
     )
     app.state.ollama_monitor.start()
-    logger.info("HTTP client pool ready (Ollama: %s)", cfg.ollama_base_url)
+    logger.info("HTTP client pool ready (Ollama: %s)", runtime.ollama_base_url)
 
     yield
 
@@ -127,11 +132,8 @@ def create_app() -> FastAPI:
             return HTMLResponse("<p>Settings — coming in Phase 6.</p>")
         return templates.TemplateResponse(
             request=request,
-            name="page_stub.html",
-            context={
-                "title": "Settings — LocalAI Hub",
-                "message": "Settings page — planned for Phase 6.",
-            },
+            name="settings.html",
+            context={},
         )
 
     @app.get("/monitor", response_class=HTMLResponse, include_in_schema=False)
