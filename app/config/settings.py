@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     # LAN security
     lan_only: bool = True
     allowed_subnets: str = "192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"
+    # Only trust X-Forwarded-For when behind a known reverse proxy (nginx, etc.)
+    trust_proxy_headers: bool = False
 
     # Optional auth
     basic_auth_user: str | None = None

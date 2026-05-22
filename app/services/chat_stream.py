@@ -27,8 +27,12 @@ def _messages_for_ollama(messages: list) -> list[dict[str, str]]:
     return [{"role": m.role, "content": m.content} for m in messages]
 
 
+def _error_event(detail: str) -> dict[str, Any]:
+    return {"event": STREAM_EVENT_ERROR, "data": {"detail": detail}}
+
+
 class ChatStreamService:
-    """Orchestrate save → Ollama stream → persist assistant reply."""
+    """Orchestrate Ollama stream → persist messages (user deferred until first token)."""
 
     @staticmethod
     async def resolve_model(
@@ -42,6 +46,13 @@ class ChatStreamService:
         return model
 
     @staticmethod
+    async def _rollback_user_message(
+        service: ChatService, user_message_id: int | None
+    ) -> None:
+        if user_message_id is not None:
+            await service.delete_message(user_message_id)
+
+    @staticmethod
     async def stream_reply(
         chat_id: int,
         user_content: str,
@@ -53,35 +64,36 @@ class ChatStreamService:
         """
         Yield stream events: token, done, or error.
         Each event is {"event": str, "data": dict}.
-        Uses a dedicated DB session so streaming outlives the HTTP request session.
+        User message is persisted on the first token; rolled back on failure.
         """
         limit = context_limit or get_settings().chat_context_messages
-        model = await soft_validate_model(model, ollama)
+
+        try:
+            model = await soft_validate_model(model, ollama)
+        except OllamaConnectionError as exc:
+            yield _error_event(str(exc))
+            return
+        except Exception as exc:
+            logger.exception("Model validation failed for chat %s", chat_id)
+            yield _error_event(f"Model validation failed: {exc}")
+            return
 
         async with async_session_factory() as session:
             service = ChatService(session)
             chat = await service.get_chat(chat_id)
             if chat is None:
-                yield {
-                    "event": STREAM_EVENT_ERROR,
-                    "data": {"detail": "Chat not found"},
-                }
-                return
-
-            user_message = await service.append_message(chat_id, "user", user_content)
-            if user_message is None:
-                yield {
-                    "event": STREAM_EVENT_ERROR,
-                    "data": {"detail": "Chat not found"},
-                }
+                yield _error_event("Chat not found")
                 return
 
             history = await service.get_messages(chat_id)
-            if len(history) > limit:
-                history = history[-limit:]
             ollama_messages = _messages_for_ollama(history)
+            ollama_messages.append({"role": "user", "content": user_content})
+            if len(ollama_messages) > limit:
+                ollama_messages = ollama_messages[-limit:]
 
             assistant_parts: list[str] = []
+            user_message_id: int | None = None
+
             try:
                 async for chunk in ollama.generate_stream(
                     model=model,
@@ -89,6 +101,15 @@ class ChatStreamService:
                 ):
                     token = _token_from_chunk(chunk)
                     if token:
+                        if user_message_id is None:
+                            user_message = await service.append_message(
+                                chat_id, "user", user_content
+                            )
+                            if user_message is None:
+                                yield _error_event("Chat not found")
+                                return
+                            user_message_id = user_message.id
+
                         assistant_parts.append(token)
                         yield {
                             "event": STREAM_EVENT_TOKEN,
@@ -98,28 +119,35 @@ class ChatStreamService:
                         break
             except OllamaConnectionError as exc:
                 logger.warning("Ollama stream failed for chat %s: %s", chat_id, exc)
-                yield {
-                    "event": STREAM_EVENT_ERROR,
-                    "data": {"detail": str(exc)},
-                }
+                await ChatStreamService._rollback_user_message(
+                    service, user_message_id
+                )
+                yield _error_event(str(exc))
+                return
+            except Exception as exc:
+                logger.exception("Unexpected stream error for chat %s", chat_id)
+                await ChatStreamService._rollback_user_message(
+                    service, user_message_id
+                )
+                yield _error_event(f"Stream failed: {exc}")
                 return
 
             full_content = "".join(assistant_parts)
             if not full_content:
-                yield {
-                    "event": STREAM_EVENT_ERROR,
-                    "data": {"detail": "Ollama returned an empty response"},
-                }
+                await ChatStreamService._rollback_user_message(
+                    service, user_message_id
+                )
+                yield _error_event("Ollama returned an empty response")
                 return
 
             assistant = await service.append_message(
                 chat_id, "assistant", full_content
             )
             if assistant is None:
-                yield {
-                    "event": STREAM_EVENT_ERROR,
-                    "data": {"detail": "Failed to save assistant message"},
-                }
+                await ChatStreamService._rollback_user_message(
+                    service, user_message_id
+                )
+                yield _error_event("Failed to save assistant message")
                 return
 
             if chat.model != model:

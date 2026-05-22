@@ -13,6 +13,17 @@ class OllamaConnectionError(Exception):
     """Raised when the Pi cannot reach Ollama on the laptop."""
 
 
+def _connection_error(exc: httpx.RequestError) -> OllamaConnectionError:
+    if isinstance(exc, httpx.ConnectError):
+        return OllamaConnectionError(
+            "Cannot connect to Ollama on the laptop. "
+            "Is it running and reachable on the LAN?"
+        )
+    if isinstance(exc, httpx.TimeoutException):
+        return OllamaConnectionError("Ollama request timed out.")
+    return OllamaConnectionError(f"Ollama request failed: {exc}")
+
+
 class OllamaClient:
     """Async HTTP client for Ollama on the inference laptop (Pi never loads models)."""
 
@@ -44,7 +55,7 @@ class OllamaClient:
                 timeout=self._health_timeout,
             )
             return response.is_success
-        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        except httpx.RequestError as exc:
             logger.debug("Ollama health check failed: %s", exc)
             return False
 
@@ -60,17 +71,12 @@ class OllamaClient:
             response = await self._client.get(self._url("/api/tags"))
             response.raise_for_status()
             data = response.json()
-        except httpx.ConnectError as exc:
-            raise OllamaConnectionError(
-                "Cannot connect to Ollama on the laptop. "
-                "Is it running and reachable on the LAN?"
-            ) from exc
-        except httpx.TimeoutException as exc:
-            raise OllamaConnectionError("Ollama request timed out.") from exc
         except httpx.HTTPStatusError as exc:
             raise OllamaConnectionError(
                 f"Ollama returned HTTP {exc.response.status_code}"
             ) from exc
+        except httpx.RequestError as exc:
+            raise _connection_error(exc) from exc
 
         self._models_cache = (now, data)
         return data
@@ -113,13 +119,8 @@ class OllamaClient:
                         logger.warning(
                             "Invalid NDJSON line from Ollama: %s", stripped[:200]
                         )
-        except httpx.ConnectError as exc:
-            raise OllamaConnectionError(
-                "Cannot connect to Ollama on the laptop. "
-                "Is it running and reachable on the LAN?"
-            ) from exc
-        except httpx.TimeoutException as exc:
-            raise OllamaConnectionError("Ollama request timed out.") from exc
+        except httpx.RequestError as exc:
+            raise _connection_error(exc) from exc
 
     async def generate_once(
         self,
@@ -145,17 +146,12 @@ class OllamaClient:
             )
             response.raise_for_status()
             return response.json()
-        except httpx.ConnectError as exc:
-            raise OllamaConnectionError(
-                "Cannot connect to Ollama on the laptop. "
-                "Is it running and reachable on the LAN?"
-            ) from exc
-        except httpx.TimeoutException as exc:
-            raise OllamaConnectionError("Ollama request timed out.") from exc
         except httpx.HTTPStatusError as exc:
             raise OllamaConnectionError(
                 f"Ollama chat failed: HTTP {exc.response.status_code}"
             ) from exc
+        except httpx.RequestError as exc:
+            raise _connection_error(exc) from exc
 
 
 def build_ollama_client(

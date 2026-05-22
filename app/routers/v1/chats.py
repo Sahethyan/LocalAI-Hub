@@ -21,7 +21,7 @@ from app.services.chat_stream import (
     STREAM_EVENT_ERROR,
     ChatStreamService,
 )
-from app.services.ollama_client import OllamaClient, OllamaConnectionError
+from app.services.ollama_client import OllamaClient
 from app.utils.sse import format_sse_json
 
 router = APIRouter()
@@ -136,8 +136,11 @@ async def send_message(
                 context_limit=cfg.chat_context_messages,
             ):
                 yield format_sse_json(item["event"], item["data"])
-        except OllamaConnectionError as exc:
-            yield format_sse_json(STREAM_EVENT_ERROR, {"detail": str(exc)})
+        except Exception as exc:
+            yield format_sse_json(
+                STREAM_EVENT_ERROR,
+                {"detail": str(exc)},
+            )
 
     return StreamingResponse(
         sse_events(),

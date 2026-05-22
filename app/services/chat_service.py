@@ -79,6 +79,14 @@ class ChatService:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def delete_message(self, message_id: int) -> bool:
+        message = await self.session.get(Message, message_id)
+        if message is None:
+            return False
+        await self.session.delete(message)
+        await self.session.commit()
+        return True
+
     async def append_message(
         self, chat_id: int, role: str, content: str
     ) -> Message | None:

@@ -39,6 +39,7 @@ async def lifespan(app: FastAPI):
     app.state.http_client = httpx.AsyncClient(
         timeout=httpx.Timeout(30.0, connect=3.0),
         limits=httpx.Limits(max_connections=4, max_keepalive_connections=2),
+        trust_env=False,
     )
     app.state.ollama_client = build_ollama_client(
         app.state.http_client,
