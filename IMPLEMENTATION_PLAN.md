@@ -2,6 +2,21 @@
 
 A phase-by-phase guide to building a lightweight local AI web interface: **FastAPI + vanilla frontend on Raspberry Pi Zero W**, with **LLM inference on a separate laptop via Ollama** over the local WiFi network.
 
+### Phase progress
+
+- [ ] **Phase 0** — Prerequisites & Environment
+- [x] **Phase 1** — Project Scaffold & Configuration
+- [x] **Phase 2** — Database Layer
+- [x] **Phase 3** — Ollama Integration Service
+- [x] **Phase 4** — Streaming Chat API
+- [x] **Phase 5** — Frontend: Core UI
+- [ ] **Phase 6** — Sidebar, History & UX Polish
+- [ ] **Phase 7** — System Monitor & Health Pages
+- [ ] **Phase 8** — Security, Rate Limiting & REST API
+- [ ] **Phase 9** — Deployment & Operations
+- [ ] **Phase 10** — Extra Features & Optimization
+- [ ] **Phase 11** — Testing & Documentation
+
 ---
 
 ## Architecture Overview
@@ -100,7 +115,7 @@ LocalAI-Hub/
 
 ---
 
-## Phase 0 — Prerequisites & Environment (Day 0)
+## [ ] Phase 0 — Prerequisites & Environment (Day 0)
 
 **Goal:** Both Pi and laptop are ready on the same LAN before any code is written.
 
@@ -131,7 +146,9 @@ LocalAI-Hub/
 
 ---
 
-## Phase 1 — Project Scaffold & Configuration (Days 1–2)
+## [x] Phase 1 — Project Scaffold & Configuration (Days 1–2) ✅
+
+**Status:** Completed
 
 **Goal:** Runnable empty FastAPI app with config, logging, and folder layout.
 
@@ -193,7 +210,9 @@ curl http://localhost:8080/api/v1/health
 
 ---
 
-## Phase 2 — Database Layer (Day 2–3)
+## [x] Phase 2 — Database Layer (Day 2–3) ✅
+
+**Status:** Completed
 
 **Goal:** Persistent chat history on Pi only (no cloud).
 
@@ -221,7 +240,9 @@ curl http://localhost:8080/api/v1/health
 
 ---
 
-## Phase 3 — Ollama Integration Service (Days 3–4)
+## [x] Phase 3 — Ollama Integration Service (Days 3–4) ✅
+
+**Status:** Completed
 
 **Goal:** Pi proxies all inference to laptop; Pi never loads models.
 
@@ -258,7 +279,9 @@ curl http://<PI>:8080/api/v1/models
 
 ---
 
-## Phase 4 — Streaming Chat API (Days 4–6)
+## [x] Phase 4 — Streaming Chat API (Days 4–6) ✅
+
+**Status:** Completed
 
 **Goal:** Real-time token streaming to browser with history persistence.
 
@@ -298,7 +321,9 @@ curl http://<PI>:8080/api/v1/models
 
 ---
 
-## Phase 5 — Frontend: Core UI (Days 6–9)
+## [x] Phase 5 — Frontend: Core UI (Days 6–9) ✅
+
+**Status:** Completed
 
 **Goal:** ChatGPT-like dark UI; no React/Vue; minimal JS footprint.
 
@@ -330,7 +355,7 @@ curl http://<PI>:8080/api/v1/models
 
 ---
 
-## Phase 6 — Sidebar, History & UX Polish (Days 9–11)
+## [ ] Phase 6 — Sidebar, History & UX Polish (Days 9–11)
 
 **Goal:** Complete main features 1–11 from requirements.
 
@@ -352,7 +377,7 @@ curl http://<PI>:8080/api/v1/models
 
 ---
 
-## Phase 7 — System Monitor & Health Pages (Days 11–12)
+## [ ] Phase 7 — System Monitor & Health Pages (Days 11–12)
 
 **Goal:** Requirements 13 + connection status (5, 12).
 
@@ -373,7 +398,7 @@ curl http://<PI>:8080/api/v1/models
 
 ---
 
-## Phase 8 — Security, Rate Limiting & REST API (Days 12–14)
+## [ ] Phase 8 — Security, Rate Limiting & REST API (Days 12–14)
 
 **Goal:** Requirements 14–15, security section, API keys.
 
@@ -399,7 +424,7 @@ curl http://<PI>:8080/api/v1/models
 
 ---
 
-## Phase 9 — Deployment & Operations (Days 14–16)
+## [ ] Phase 9 — Deployment & Operations (Days 14–16)
 
 **Goal:** Production run on Pi OS Lite with auto-start.
 
@@ -444,7 +469,7 @@ WantedBy=multi-user.target
 
 ---
 
-## Phase 10 — Extra Features & Optimization (Days 16–18)
+## [ ] Phase 10 — Extra Features & Optimization (Days 16–18)
 
 **Goal:** Polish, Pi-specific tuning, optional extras.
 
@@ -473,7 +498,7 @@ WantedBy=multi-user.target
 
 ---
 
-## Phase 11 — Testing & Documentation (Days 18–20)
+## [ ] Phase 11 — Testing & Documentation (Days 18–20)
 
 **Goal:** Confidence for real-world use.
 
@@ -502,20 +527,20 @@ WantedBy=multi-user.target
 
 ## Implementation Order Summary
 
-| Phase | Focus | Depends on |
-|-------|--------|------------|
-| 0 | Network & Ollama on laptop | — |
-| 1 | Scaffold, config, health | 0 |
-| 2 | SQLite + ORM | 1 |
-| 3 | Ollama client + status | 0, 1 |
-| 4 | Streaming API | 2, 3 |
-| 5 | Frontend core chat | 4 |
-| 6 | Sidebar, MD, settings UI | 5 |
-| 7 | System monitor page | 1, 3 |
-| 8 | Auth, rate limit, REST export | 4 |
-| 9 | systemd, setup.sh, README deploy | 1–8 |
-| 10 | QR, optimizations, reconnect UX | 5–9 |
-| 11 | Testing & docs | All |
+| Phase | Focus | Depends on | Status |
+|-------|--------|------------|--------|
+| 0 | Network & Ollama on laptop | — | [ ] |
+| 1 | Scaffold, config, health | 0 | [x] ✅ |
+| 2 | SQLite + ORM | 1 | [x] ✅ |
+| 3 | Ollama client + status | 0, 1 | [x] ✅ |
+| 4 | Streaming API | 2, 3 | [x] ✅ |
+| 5 | Frontend core chat | 4 | [x] ✅ |
+| 6 | Sidebar, MD, settings UI | 5 | [ ] |
+| 7 | System monitor page | 1, 3 | [ ] |
+| 8 | Auth, rate limit, REST export | 4 | [ ] |
+| 9 | systemd, setup.sh, README deploy | 1–8 | [ ] |
+| 10 | QR, optimizations, reconnect UX | 5–9 | [ ] |
+| 11 | Testing & docs | All | [ ] |
 
 ---
 
@@ -558,4 +583,4 @@ WantedBy=multi-user.target
 
 ## Next Step After This Plan
 
-Execute **Phase 1** in the repository: scaffold `app/`, `requirements.txt`, `.env.example`, and `main.py` with health check — then proceed sequentially through phases, merging each phase to `main` before starting the next.
+Phases **1–5** are complete. Continue with **Phase 6** (sidebar, history, and UX polish), then proceed sequentially through phases 7–11. Complete **Phase 0** prerequisites in parallel if not already done on your Pi and laptop.
