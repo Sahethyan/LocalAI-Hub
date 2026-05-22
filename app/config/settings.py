@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: str = "logs/app.log"
 
+    # Chat context sent to Ollama (last N messages in thread)
+    chat_context_messages: int = 40
+
     # Rate limiting
     rate_limit_per_minute: int = 60
 

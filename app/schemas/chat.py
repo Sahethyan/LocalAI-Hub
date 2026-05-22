@@ -48,3 +48,28 @@ class ChatDetail(BaseModel):
     messages: list[MessageResponse]
 
     model_config = {"from_attributes": True}
+
+
+class StreamMessageCreate(BaseModel):
+    """Send a user message and stream the assistant reply."""
+
+    content: str = Field(..., min_length=1, max_length=MESSAGE_CONTENT_MAX_LEN)
+    model: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Overrides chat.model when set",
+    )
+
+
+class StreamTokenPayload(BaseModel):
+    content: str
+
+
+class StreamDonePayload(BaseModel):
+    message_id: int
+    chat_id: int
+    content: str
+
+
+class StreamErrorPayload(BaseModel):
+    detail: str
