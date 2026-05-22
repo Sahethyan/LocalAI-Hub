@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -110,21 +111,35 @@ def create_app() -> FastAPI:
 
     templates = None
     if TEMPLATES_DIR.is_dir():
-        templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+        jinja_env = Environment(
+            loader=FileSystemLoader(str(TEMPLATES_DIR)),
+            autoescape=select_autoescape(["html", "xml"]),
+            auto_reload=True,
+        )
+        templates = Jinja2Templates(env=jinja_env)
         app.state.templates = templates
 
-    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-    async def index(request: Request):
-        """Main chat UI (Phase 5)."""
+    def _chat_template(request: Request):
         if templates is None:
             return HTMLResponse(
-                "<h1>LocalAI Hub</h1><p>API running. See <a href='/docs'>/docs</a>.</p>"
+                "<h1>LocalAI Hub</h1><p>API running. See <a href='/docs'>/docs</a>.</p>",
+                status_code=503,
             )
         return templates.TemplateResponse(
             request=request,
             name="chat.html",
             context={},
         )
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    async def index(request: Request):
+        """Main chat UI (Phase 5)."""
+        return _chat_template(request)
+
+    @app.get("/chat", response_class=HTMLResponse, include_in_schema=False)
+    async def chat_page(request: Request):
+        """Alias for / (bookmark-friendly)."""
+        return _chat_template(request)
 
     @app.get("/settings", response_class=HTMLResponse, include_in_schema=False)
     async def settings_page(request: Request):

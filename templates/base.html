@@ -13,7 +13,7 @@
   <main class="container">
     <h1>{{ title | default("LocalAI Hub") }}</h1>
     {% block page_content %}
-    <p>API is running. <a href="/">Open chat</a> · <a href="/docs">API docs</a></p>
+    <p>API is running. Restart the server (<code>./scripts/restart_server.sh</code>) to load the chat UI at <a href="/">/</a>. · <a href="/docs">API docs</a></p>
     {% endblock %}
   </main>
   {% endblock %}
