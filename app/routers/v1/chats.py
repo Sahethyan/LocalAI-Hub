@@ -91,13 +91,13 @@ async def delete_chat(
 async def send_message(
     chat_id: int,
     body: StreamMessageCreate,
+    service: Annotated[ChatService, Depends(get_chat_service)],
     ollama: Annotated[OllamaClient, Depends(get_ollama_client)],
     cfg: Annotated[Settings, Depends(get_settings)],
     stream: Annotated[
         bool,
         Query(description="Stream assistant reply via SSE when true"),
     ] = True,
-    service: Annotated[ChatService, Depends(get_chat_service)],
 ):
     """
     Send a user message. By default streams the assistant reply as SSE.
