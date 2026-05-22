@@ -5,6 +5,11 @@ from app.schemas.chat import (
     MessageCreate,
     MessageResponse,
 )
+from app.schemas.ollama import (
+    OllamaGenerateRequest,
+    OllamaModelsResponse,
+    OllamaStatusResponse,
+)
 
 __all__ = [
     "ChatCreate",
@@ -12,4 +17,7 @@ __all__ = [
     "ChatSummary",
     "MessageCreate",
     "MessageResponse",
+    "OllamaGenerateRequest",
+    "OllamaModelsResponse",
+    "OllamaStatusResponse",
 ]

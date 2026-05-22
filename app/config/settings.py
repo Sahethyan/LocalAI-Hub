@@ -16,6 +16,9 @@ class Settings(BaseSettings):
 
     # Ollama (laptop on LAN)
     ollama_base_url: str = "http://192.168.1.100:11434"
+    ollama_cache_ttl_seconds: int = 45
+    ollama_health_timeout_seconds: float = 3.0
+    ollama_reconnect_interval_seconds: int = 10
 
     # Server bind
     host: str = "0.0.0.0"
