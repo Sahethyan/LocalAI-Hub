@@ -1,16 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="theme-dark" id="html-root">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ title | default("LocalAI Hub") }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark light" />
+  <title>{% block title %}{{ title | default("LocalAI Hub") }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/css/main.css" />
+  {% block head_extra %}{% endblock %}
 </head>
 <body>
+  {% block body %}
   <main class="container">
-    <h1>LocalAI Hub</h1>
-    <p>Phase 1 scaffold — API is running. Open <a href="/docs">/docs</a> for OpenAPI.</p>
-    <p>Health: <a href="/api/v1/health">/api/v1/health</a></p>
+    <h1>{{ title | default("LocalAI Hub") }}</h1>
+    {% block page_content %}
+    <p>API is running. <a href="/">Open chat</a> · <a href="/docs">API docs</a></p>
+    {% endblock %}
   </main>
+  {% endblock %}
+  {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,22 @@
+<aside class="sidebar" id="sidebar" aria-label="Chat sidebar">
+  <div class="sidebar-header">
+    <span class="sidebar-brand">LocalAI Hub</span>
+    <button type="button" class="btn-icon sidebar-close" id="sidebarClose" aria-label="Close sidebar">
+      <span aria-hidden="true">&times;</span>
+    </button>
+  </div>
+
+  <button type="button" class="btn btn-primary btn-new-chat" id="newChatBtn">
+    <span class="btn-icon-left" aria-hidden="true">+</span>
+    New chat
+  </button>
+
+  <nav class="sidebar-nav" aria-label="Secondary">
+    <a href="/settings" class="sidebar-link">Settings</a>
+    <a href="/monitor" class="sidebar-link">Monitor</a>
+  </nav>
+
+  <div class="sidebar-section-label">Recent chats</div>
+  <ul class="chat-list" id="chatList" role="list"></ul>
+</aside>
+<div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>

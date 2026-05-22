@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Chat — LocalAI Hub{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" id="hljs-theme" />
+{% endblock %}
+
+{% block body %}
+<div class="app" id="app">
+  {% include "partials/sidebar.html" %}
+
+  <div class="chat-panel">
+    <header class="chat-header">
+      <button type="button" class="btn-icon" id="menuBtn" aria-label="Open menu" aria-expanded="false">
+        <span class="hamburger" aria-hidden="true"></span>
+      </button>
+      <h1 class="chat-title" id="chatTitle">New chat</h1>
+      <div class="header-actions">
+        <label class="model-select-wrap">
+          <span class="visually-hidden">Model</span>
+          <select id="modelSelect" class="model-select" aria-label="Model">
+            <option value="">Loading models…</option>
+          </select>
+        </label>
+        <span class="connection-badge" id="connectionBadge" title="Ollama connection" data-status="unknown">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span class="connection-label" id="connectionLabel">Checking…</span>
+        </span>
+        <button type="button" class="btn-icon" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+          <span aria-hidden="true">◐</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="messages-wrap" id="messagesWrap">
+      <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions">
+        <div class="messages-empty" id="messagesEmpty">
+          <p>Send a message to start chatting with your local model.</p>
+        </div>
+      </div>
+    </div>
+
+    <form class="composer" id="composer" autocomplete="off">
+      <div class="composer-inner">
+        <textarea
+          id="promptInput"
+          class="prompt-input"
+          rows="1"
+          placeholder="Message LocalAI Hub…"
+          aria-label="Message"
+          maxlength="32000"
+        ></textarea>
+        <button type="submit" class="btn btn-send" id="sendBtn" aria-label="Send message" disabled>
+          <span class="send-icon" aria-hidden="true">↑</span>
+        </button>
+      </div>
+      <p class="composer-hint" id="composerHint" hidden>Select a model to send messages.</p>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/python.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/javascript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/bash.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/json.min.js"></script>
+<script src="/static/js/chat.js"></script>
+{% endblock %}
